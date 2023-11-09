@@ -9,6 +9,8 @@ ALLOC_POLICY_DICT = {
     2: 'SJG',  # SJF with estimator using GROUP, USER feature
     4: 'SJGG',  # SJF with estimator using GROUP, USER, GPU feature
     8: 'FIFO',  # FIFO, the default
+    9: 'HRRN',  # Highest Response Ratio Next, Chooses the process with the highest ratio of the sum of its waiting time and its service time to its service time. Tends to balance short and long processes.
+    10: 'HRRN_norm', # normalized HRRN 
 }
 
 PREEMPT_POLICY_DICT = {

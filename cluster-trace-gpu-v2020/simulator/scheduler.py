@@ -61,7 +61,17 @@ class Scheduler:
             job_list.sort(key=lambda e: (e['duration'], e['job_id']))
         elif self.alloc_policy == 8:  # FIFO, remains the original order
             job_list.sort(key=lambda e: (e['submit_time'], e['job_id']))
-        elif self.alloc_policy in [1, 2, 4]:  # SJF with duration estimation
+        elif self.alloc_policy == 9: # HRRN, (waiting_time + service_time ) / service time first
+            job_list.sort(key=lambda e: ( (e['group_gpu_dur']+e['wait_time']) / e['wait_time'], e['job_id']))
+            # With Normalization for group_gpu_dur
+        elif self.alloc_policy == 10: # HRRN with normalization
+            group_gpu_durs = [job['group_gpu_dur'] for job in job_list]  # This creates a list of 'group_gpu_dur' from each job in job_list
+            group_max = max(group_gpu_durs)
+            group_min = min(group_gpu_durs)
+            de = group_max - group_min
+            # job_list.sort(key=lambda e: (((e['group_gpu_dur'] - group_min) / de                   + e['wait_time'])  / e['wait_time'], e['job_id']))
+            job_list.sort(key=lambda e: (((e['group_gpu_dur'] - group_min) / de if de > 0 else 0) + e['wait_time']) / e['wait_time'])
+        elif self.alloc_policy in [1, 2, 4]:  # SJF with duration estimatio
             est_feature = {1: 'user_dur', 2: 'group_dur', 4: 'group_gpu_dur'}[self.alloc_policy]
             job_list.sort(key=lambda e: (e[est_feature], e['job_id']))
         else:
