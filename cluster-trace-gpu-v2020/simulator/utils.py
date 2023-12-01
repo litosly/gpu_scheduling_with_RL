@@ -2,6 +2,8 @@ import logging
 import csv
 import numpy as np
 from matplotlib import pyplot as plt
+import random
+import tqdm
 
 ALLOC_POLICY_DICT = {
     0: 'SJF',  # 'short job first', SJF
@@ -11,6 +13,9 @@ ALLOC_POLICY_DICT = {
     8: 'FIFO',  # FIFO, the default
     9: 'HRRN',  # Highest Response Ratio Next, Chooses the process with the highest ratio of the sum of its waiting time and its service time to its service time. Tends to balance short and long processes.
     10: 'HRRN_norm', # normalized HRRN 
+    12: 'Lottery', # Lottery Sort
+    13: 'FairShareGroup', # Fair Share Scheduling
+    14: 'FairShareUser', # Fair Share by User instead of Group
 }
 
 PREEMPT_POLICY_DICT = {
@@ -235,3 +240,77 @@ def plot_multi_cluster_util(npyfiles, to_date=False):
         plt.savefig(str(npyfile).split('.log.')[0]+"-cluster_util.png")
     except:
         plt.savefig("cluster_util")
+
+def assign_tickets(job, weight_factor=1):
+    """Assign tickets to a job based on its estimated duration."""
+    return max(int(job['group_gpu_dur'] * weight_factor), 1)
+
+def lottery_sort(job_list):
+    """Efficient Lottery Scheduling algorithm to sort the job list in place."""
+    # Assign tickets to each job and build a cumulative ticket sum list
+    cumulative_tickets = []
+    total_tickets = 0
+
+    for job in job_list:
+        job['tickets'] = assign_tickets(job)  # Ensure 'tickets' key is added to each job
+        total_tickets += job['tickets']
+        cumulative_tickets.append(total_tickets)
+
+    for i in range(len(job_list)):
+        if total_tickets <= 0:
+            break  # Break the loop if there are no more tickets
+
+        # Randomly select a ticket
+        winning_ticket = random.randint(1, total_tickets)
+        
+        # Find the index of the job corresponding to the winning ticket
+        winning_index = next(index for index, cumul in enumerate(cumulative_tickets) if cumul >= winning_ticket)
+
+        # Swap the selected job with the job at the current position
+        job_list[i], job_list[winning_index] = job_list[winning_index], job_list[i]
+
+        # Update the cumulative tickets list and total tickets count
+        if i != winning_index:
+            diff = job_list[i]['tickets']
+            for j in range(i, winning_index + 1):
+                cumulative_tickets[j] -= diff
+        total_tickets -= job_list[i]['tickets']
+
+
+def fair_share_group(job_list):
+    """
+    Fair Share Scheduling algorithm to sort the job list for equal CPU time distribution among groups.
+    """
+    # Track CPU time used by each group
+    gpu_time_used = {}
+
+    # Initialize CPU time used for each group
+    for job in job_list:
+        group = job['group']
+        if group not in gpu_time_used:
+            gpu_time_used[group] = 0
+
+    # Sort the job list in place based on the CPU time used by their respective groups
+    job_list.sort(key=lambda job: gpu_time_used[job['group']])
+
+    # Update CPU time used after scheduling (simulated)
+    for job in job_list:
+        group = job['group']
+        gpu_time_used[group] += job['group_gpu_dur']
+
+def fair_share_user(job_list):
+    gpu_time_used = {}
+
+    # Initialize CPU time used for each user
+    for job in job_list:
+        user = job['user']
+        if user not in gpu_time_used:
+            gpu_time_used[user] = 0
+
+    # Sort the job list in place based on the CPU time used by each user
+    job_list.sort(key=lambda job: gpu_time_used[job['user']])
+
+    # Update CPU time used after scheduling (simulated)
+    for job in job_list:
+        user = job['user']
+        gpu_time_used[user] += job['group_gpu_dur']
