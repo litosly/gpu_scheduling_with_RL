@@ -84,8 +84,9 @@ print_str = "==========\n%d_Jobs_repeated_%d_times\nalloc,preempt,avg_jct,wait_t
 print(print_str)
 print_fn(print_str, level=2)
 
-# for alloc_policy in [0, 1, 2, 4, 8]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
-for alloc_policy in [0, 1, 2, 4, 8, 9, 10]:  # HRRN, HRRN_norm (see utils.py)
+for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
+# for alloc_policy in [0, 1, 2, 4, 8, 9, 10]:  # HRRN, HRRN_norm (see utils.py)
+# for alloc_policy in [13]:  # HRRN, HRRN_norm (see utils.py)
     for preempt_policy in [2]:  # 2LGF
         key = (alloc_policy, preempt_policy)
         print_key = "(%-4s,%4s)" % (ALLOC_POLICY_DICT.get(key[0]), PREEMPT_POLICY_DICT.get(key[1]))

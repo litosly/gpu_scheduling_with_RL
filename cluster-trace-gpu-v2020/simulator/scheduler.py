@@ -1,5 +1,5 @@
 import utils
-from utils import print_fn, ALLOC_POLICY_DICT, PREEMPT_POLICY_DICT, _repr_job_concise
+from utils import print_fn, ALLOC_POLICY_DICT, PREEMPT_POLICY_DICT, _repr_job_concise, lottery_sort, fair_share_group, fair_share_user
 
 
 class Scheduler:
@@ -71,9 +71,15 @@ class Scheduler:
             de = group_max - group_min
             # job_list.sort(key=lambda e: (((e['group_gpu_dur'] - group_min) / de                   + e['wait_time'])  / e['wait_time'], e['job_id']))
             job_list.sort(key=lambda e: (((e['group_gpu_dur'] - group_min) / de if de > 0 else 0) + e['wait_time']) / e['wait_time'])
-        elif self.alloc_policy in [1, 2, 4]:  # SJF with duration estimatio
+        elif self.alloc_policy in [1, 2, 4]:  # SJF with duration estimation
             est_feature = {1: 'user_dur', 2: 'group_dur', 4: 'group_gpu_dur'}[self.alloc_policy]
             job_list.sort(key=lambda e: (e[est_feature], e['job_id']))
+        elif self.alloc_policy == 12: # Lottery
+            lottery_sort(job_list)
+        elif self.alloc_policy == 13: # Fair Share Group    
+            fair_share_group(job_list)
+        elif self.alloc_policy == 14: # Fair Share User
+            fair_share_user(job_list)
         else:
             raise Exception("Unexpected alloc policy: %d" % self.alloc_policy)
 
