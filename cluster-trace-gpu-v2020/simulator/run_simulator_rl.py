@@ -199,6 +199,11 @@ for i_episode in range(num_episodes):
         if done:
             break
 
-    # ... (Any extra code for logging results, updating epsilon, etc.)
+    # Print episode stats
+    print(f"Episode {i_episode}/{num_episodes} | Reward: {episode_reward}")
 
-# ... (Any additional code for saving models, logging, etc.)
+    # Perform any necessary updates to the agent here, like epsilon decay
+    # ...
+
+# Save the trained Q-network
+torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
