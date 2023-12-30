@@ -126,6 +126,8 @@ class Simulator:
         if (num_jobs is not None) and num_jobs <= len(self.job_list):
             random.shuffle(self.job_list)
             self.job_list = self.job_list[:num_jobs]
+        # set a list of jobs to be arrived at the same time
+        # e.g. 1000 jobs have same arrival time of 0 for 60 secs 
         self.set_job_list_arrival_time(self.job_list, self.arrival_rate, self.arrival_interval, self.arrival_shuffle)
         print_fn("----------------------------- RANDOM: %d" % random.randint(1000, 9999))
         print_fn("%d Job loaded" % len(self.job_list))
@@ -215,7 +217,7 @@ class Simulator:
 
     def tic(self, delta=1):
         if self.cur_time < self.max_time:
-            self.cluster.tic_svc(self.cur_time)
+            self.cluster.tic_svc(self.cur_time) #normally won't update since we have pattern = 0
 
             # Preempt job
             self.scheduler.preempt_job(self.cluster)
@@ -225,6 +227,8 @@ class Simulator:
 
             # Jobs tic and global cur_time += delta
             tic_return_value = self.cluster.tic_job(delta)
+
+            # After one tic
             if tic_return_value >= 0:
                 self.cur_time = tic_return_value
             else:

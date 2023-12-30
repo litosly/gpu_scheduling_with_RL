@@ -132,3 +132,130 @@ state_size = 10  # The size of the job representation
 action_size = 4  # Assuming four possible nodes to allocate
 
 agent = DQNAgent(state_size=state_size, action_size=action_size, seed=0)
+
+
+# def get_state(cluster):
+#     num_available_gpus = cluster.get_num_available_gpus()
+#     job_queue_length = len(cluster.job_queue)
+#     average_wait_time = cluster.get_average_wait_time()
+#     group_gpu_dur = cluster.get_group_gpu_dur() # You need to define how to calculate this
+#     return (num_available_gpus, job_queue_length, average_wait_time, group_gpu_dur)
+def select_action(job_queue):
+    # Sort jobs by group_gpu_dur and select the job with the shortest time
+    sorted_jobs = sorted(job_queue, key=lambda x: x.group_gpu_dur)
+    return sorted_jobs[0] if sorted_jobs else None
+def get_reward(job):
+    # Negative of the job completion time
+    return -job.completion_time
+def update_q_table(q_table, state, action, reward, next_state, alpha, gamma):
+    max_future_q = max(q_table[next_state, :])
+    current_q = q_table[state, action]
+    new_q = current_q + alpha * (reward + gamma * max_future_q - current_q)
+    q_table[state, action] = new_q
+
+
+# Assuming that the Cluster class has methods to get the number of available GPUs, job queue, and average wait time
+# The following is a pseudocode implementation of the state representation function
+# Note: You will need to replace the method names with the actual method names from your Cluster class
+
+def get_state(cluster):
+    # Assuming cluster has a method to get the number of available GPUs
+    # num_available_gpus = cluster.get_num_available_gpus() 
+    
+    # Assuming cluster has a property or method to get the job queue
+    job_queue_length = len(cluster.job_queue)
+    
+    # Assuming cluster has a method to calculate the average wait time of jobs in the queue
+    average_wait_time = cluster.get_average_wait_time()
+    
+    # Assuming cluster has a method to get the current 'group_gpu_dur' estimate
+    # This might be a calculated property based on the current jobs in the queue or running
+    group_gpu_dur = cluster.get_group_gpu_dur()
+    
+    # The state is a tuple of these features
+    return (num_available_gpus, job_queue_length, average_wait_time, group_gpu_dur)
+
+# This is a placeholder function to represent the actual Cluster class methods
+# You will need to implement these methods in your Cluster class or modify this function
+# to correctly interact with your Cluster class implementation
+
+# For now, let's define mock methods to test our state representation function
+
+class MockCluster:
+    def __init__(self):
+        self.job_queue = []  # Mock job queue
+        # Mock method to get the number of available GPUs
+        self.get_num_available_gpus = lambda: 10
+        # Mock method to get the average wait time
+        self.get_average_wait_time = lambda: 5.0
+        # Mock method to get the group_gpu_dur
+        self.get_group_gpu_dur = lambda: 120
+
+# Create a mock cluster object
+mock_cluster = MockCluster()
+
+# Get the state representation
+state = get_state(mock_cluster)
+state
+
+
+
+def get_reward(job):
+    # The reward is the negative of the Job Completion Time (JCT)
+    return -job.completion_time
+
+# Placeholder class to represent job objects with a 'completion_time' attribute
+class MockJobWithCompletionTime:
+    def __init__(self, completion_time):
+        self.completion_time = completion_time
+
+# Create a mock job with a specific completion time to test the reward function
+mock_job = MockJobWithCompletionTime(completion_time=120)
+
+# Calculate the reward for the mock job
+reward = get_reward(mock_job)
+reward
+
+# Given that the job queue is a list of job objects and each job has a 'group_gpu_dur' attribute
+# We can implement the action selection function as follows:
+
+def select_action(job_queue):
+    # If the job queue is empty, there is no action to take
+    if not job_queue:
+        return None
+    
+    # Sort jobs by 'group_gpu_dur' and select the job with the shortest estimated time
+    # Assuming that smaller 'group_gpu_dur' values are better (shorter estimated time)
+    selected_job = min(job_queue, key=lambda job: job.group_gpu_dur)
+    return selected_job
+
+# This is a placeholder class to represent the actual job objects
+# You will need to ensure that your job objects have a 'group_gpu_dur' attribute
+
+class MockJob:
+    def __init__(self, group_gpu_dur):
+        self.group_gpu_dur = group_gpu_dur
+
+# Create a mock job queue with mock jobs
+mock_job_queue = [MockJob(group_gpu_dur=100), MockJob(group_gpu_dur=200), MockJob(group_gpu_dur=50)]
+
+# Select an action (job) from the mock job queue
+selected_job = select_action(mock_job_queue)
+
+# The selected job should be the one with the shortest 'group_gpu_dur'
+selected_job.group_gpu_dur
+
+
+
+def update_q_table(q_table, state, action, reward, next_state, alpha, gamma, all_actions):
+    # Find the max Q-value of the next state
+    max_future_q = max(q_table[next_state][a] for a in all_actions)
+
+    # Current Q-value for the state-action pair
+    current_q = q_table[state][action]
+
+    # Calculate the new Q-value
+    new_q = current_q + alpha * (reward + gamma * max_future_q - current_q)
+
+    # Update the Q-table with the new Q-value
+    q_table[state][action] = new_q

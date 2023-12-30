@@ -75,11 +75,14 @@ class Cluster:
         node_list.sort(key=lambda n: n.id)
         return node_list
 
-    def tic_job(self, delta=1):
+    def tic_job(self, delta=1, return_reward=False):
         # Unlike tic_svc(), it receives simulator's cur_time as its own cur_time
         # Here it returns a "cur_time" value to the simulator
         # If succeed: return cur_time >= 0
         # Else: return cur_time < 0 ==> exit_flag = 1
+
+        reward = 0 # TODO: need reward engineering. Set default reward to 0 if nothing happens, i.e. no job completion
+
         self.cur_time += delta
         if self.export_cluster_util and self.cur_time % 10000 == 0:
             self.record_cluster_util()
@@ -87,8 +90,8 @@ class Cluster:
         job_runn_list = self.job_runn_list
         if len(job_runn_list) > 0:
             for job in job_runn_list:
-                job['on_time'] += delta
-                job['progress'] = job['on_time'] * job['num_gpu']
+                job['on_time'] += delta # unit time pass, 1 sec by default
+                job['progress'] = job['on_time'] * job['num_gpu'] # num_gpu sec progress by default for every unit time pass
                 
                 # Job done logic
                 if job['on_time'] >= job['duration']:
@@ -103,11 +106,12 @@ class Cluster:
                     assert suc
 
                     job['jct'] = self.cur_time - over_tic_time - job['submit_time']  # deduct submit_time
-
+                    reward = -job['jct'] #TODO: need reward engineering
                     self.job_history.add_done_job(job)
 
                     print_fn("%sDONE: %s || %s" % (self.log_prefix, _repr_job_done(job), job))
-                
+            if return_reward:
+                return self.cur_time, reward
             return self.cur_time  # exit_flag = 0, still going
 
         # len(job_runn_list) <= 0,
@@ -117,15 +121,22 @@ class Cluster:
 
             if self.idle_cluster_counter % 10000 == 0:
                 print_fn('{} idle cluster: {}'.format(self.idle_cluster_counter, [_repr_job_preempt(e) for e in self.job_list]), level=2)
+            if return_reward:
+                return self.cur_time, reward
             return self.cur_time  # exit_flag = 0, still going
 
         elif len(self.job_full_list) > 0:  # i.e., empty cluster waiting for jobs to come
             wake_time = self.job_full_list[-1]['submit_time'] - delta  # the submit_time of the earliest job
             assert self.cur_time <= wake_time  # if ==, i.e., the stride is unnecessary
             self.cur_time = wake_time
+            if return_reward:
+                return self.cur_time, reward
             return self.cur_time  # exit_flag = 0, still going
 
         else:  # no running job, no pending job, no coming job => exit.
+            reward = 1 # TODO: need reward engineering. All jobs done, give reward 1
+            if return_reward:
+                return -1, reward
             return -1  # exit
 
     def tic_svc(self, cur_time):
