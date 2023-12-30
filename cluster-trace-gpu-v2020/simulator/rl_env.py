@@ -31,21 +31,29 @@ CSV_FILE_PATH = Path(__file__).parent / 'traces/pai/'
 DESCRIBE_FILE = None
 CSV_FILE = 'pai_job_duration_estimate_100K.csv'
 
-parser = argparse.ArgumentParser(description='Simulator.')
-parser.add_argument("-r", "--arrival_rate", help="Arrival Rate", type=int, default=1000)
-parser.add_argument("-n", "--num_jobs", help="Num of Jobs", type=int, default=20000)
-parser.add_argument("-g", "--num_gpus", help="Num of GPUs", type=int, default=6500)
-parser.add_argument("-p", "--repeat", help='Repeat', type=int, default=1)
-parser.add_argument("-k", "--pack", dest='packing_policy', action='store_true')
-parser.add_argument("-b", "--balance", dest='packing_policy', action='store_false')
-parser.set_defaults(packing_policy=False)
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description='Simulator.')
+# parser.add_argument("-r", "--arrival_rate", help="Arrival Rate", type=int, default=1000)
+# parser.add_argument("-n", "--num_jobs", help="Num of Jobs", type=int, default=20000)
+# parser.add_argument("-g", "--num_gpus", help="Num of GPUs", type=int, default=6500)
+# parser.add_argument("-p", "--repeat", help='Repeat', type=int, default=1)
+# parser.add_argument("-k", "--pack", dest='packing_policy', action='store_true')
+# parser.add_argument("-b", "--balance", dest='packing_policy', action='store_false')
+# parser.set_defaults(packing_policy=False)
+# args = parser.parse_args()
 
-NUM_JOBS = args.num_jobs
-ARRIVAL_RATE = args.arrival_rate
-NUM_GPUS = args.num_gpus
-REPEAT = args.repeat
-SORT_NODE_POLICY = 0 if args.packing_policy is True else 3  # 0: packing, 3: max-min balancing.
+# NUM_JOBS = args.num_jobs
+# ARRIVAL_RATE = args.arrival_rate
+# NUM_GPUS = args.num_gpus
+# REPEAT = args.repeat
+# SORT_NODE_POLICY = 0 if args.packing_policy is True else 3  # 0: packing, 3: max-min balancing.
+
+packing_policy = False
+NUM_JOBS = 20000
+ARRIVAL_RATE = 1000
+NUM_GPUS = 6500
+REPEAT = 1
+SORT_NODE_POLICY = 0 if packing_policy is True else 3  # 0: packing, 3: max-min balancing.
+
 
 MAX_TIME = int(1e9)
 
@@ -200,8 +208,6 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
         self.state = None
 
-        self.steps_beyond_terminated = None
-
     def step(self, action, delta = 1):
         err_msg = f"{action!r} ({type(action)}) invalid"
         assert self.action_space.contains(action), err_msg
@@ -264,23 +270,14 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         seed: Optional[int] = None,
         options: Optional[dict] = None,
     ):
-        super().reset(seed=seed)
-        # Note that if you use custom reset bounds, it may lead to out-of-bound
-        # state/observations.
-        low, high = utils.maybe_parse_reset_bounds(
-            options, -0.05, 0.05  # default low
-        )  # default high
-        self.state = self.np_random.uniform(low=low, high=high, size=(4,))
-        self.steps_beyond_terminated = None
-
-        if self.render_mode == "human":
-            self.render()
+        # super().reset(seed=seed)
+        self.state = np.zeros(5)
         return np.array(self.state, dtype=np.float32), {}
 
-    def close(self):
-        if self.screen is not None:
-            import pygame
+    # def close(self):
+    #     if self.screen is not None:
+    #         import pygame
 
-            pygame.display.quit()
-            pygame.quit()
-            self.isopen = False
+    #         pygame.display.quit()
+    #         pygame.quit()
+    #         self.isopen = False
