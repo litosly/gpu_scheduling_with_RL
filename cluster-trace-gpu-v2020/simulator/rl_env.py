@@ -8,11 +8,12 @@ from typing import Optional, Union
 
 import numpy as np
 
-import gym
-from gym import logger, spaces
-from gym.envs.classic_control import utils
-from gym.error import DependencyNotInstalled
-
+# import gym
+import gymnasium as gym
+from gymnasium import logger, spaces
+from gymnasium.envs.classic_control import utils
+from gymnasium.error import DependencyNotInstalled
+import statistics
 
 
 from simulator import Simulator
@@ -212,7 +213,7 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         err_msg = f"{action!r} ({type(action)}) invalid"
         assert self.action_space.contains(action), err_msg
         assert self.state is not None, "Call reset before using step method."
-
+        terminated = 0
         # Read current state
         avg_wait_time, avg_duration, job_list_length, max_wait_time, min_duration = self.state
         
@@ -248,17 +249,33 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             self.exit_flag = 1
             raise TimeoutError("TIMEOUT {} with jobs {}".format(self.cur_time, self.cluster.job_list))
         
-        num_jobs_done, jct_summary, wait_time_summary = self.simulator.exp_summary(0)
+        
         if self.simulator.exit_flag:
+            terminated = 1
+            num_jobs_done, jct_summary, wait_time_summary = self.simulator.exp_summary(0)
             self.result.append((num_jobs_done, jct_summary / num_jobs_done, wait_time_summary / num_jobs_done, self.simulator.cur_time))
-
+            # avg_wait_time = wait_time_summary / num_jobs_done
+            # avg_duration = jct_summary / num_jobs_done
+        
         # Update New State
-        avg_wait_time = wait_time_summary / num_jobs_done
-        avg_duration = jct_summary / num_jobs_done
         job_list = self.simulator.cluster.job_list
+        if self.simulator.cur_time % 10000 == 0:
+            print("current time: ", self.simulator.cur_time)
+            print("current job list in cluster: ", len(job_list))
+            print("current running job: ", len(self.simulator.cluster.job_runn_list))
+            print("length of the full list: ", len(self.simulator.cluster.job_full_list))
+
         job_list_length = len(job_list)
-        max_wait_time = max(self.simulator.cur_time - job["submit_time"] for job in job_list)
-        min_duration = min(job["group_gpu_dur"] for job in job_list)
+
+        wait_time_list = [self.simulator.cur_time - job["submit_time"] for job in job_list]
+        if wait_time_list:
+            avg_wait_time = statistics.mean(wait_time_list)
+            max_wait_time = max(wait_time_list)
+
+        duration_list = [job["group_gpu_dur"] for job in job_list]
+        if duration_list:
+            avg_duration = statistics.mean(duration_list)
+            min_duration = min(duration_list)
 
         self.state = (avg_wait_time, avg_duration, job_list_length, max_wait_time, min_duration)
 
