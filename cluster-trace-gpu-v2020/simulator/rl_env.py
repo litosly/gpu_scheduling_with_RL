@@ -13,7 +13,6 @@ import gymnasium as gym
 from gymnasium import logger, spaces
 from gymnasium.envs.classic_control import utils
 from gymnasium.error import DependencyNotInstalled
-import statistics
 
 
 from simulator import Simulator
@@ -177,7 +176,7 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     def __init__(self, render_mode: Optional[str] = None):
         self.simulator = Simulator(
             csv_file=CSV_FILE_PATH / CSV_FILE,
-            alloc_policy=14, # RL
+            alloc_policy=15, # RL
             preempt_policy=2,
             sort_node_policy=SORT_NODE_POLICY,
             num_nodes=NUM_NODES,
@@ -264,10 +263,10 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         num_jobs_in_cluster = len(job_list)
         wait_time_list = [self.simulator.cur_time - job["submit_time"] for job in job_list]
         if wait_time_list:
-            avg_wait_time_cluster = statistics.mean(wait_time_list)
+            avg_wait_time_cluster = np.mean(wait_time_list)
         duration_list = [job["group_gpu_dur"] for job in job_list]
         if duration_list:
-            avg_duration_estimate = statistics.mean(duration_list)
+            avg_duration_estimate = np.mean(duration_list)
 
         # Done jobs related
         job_history = self.simulator.cluster.job_history

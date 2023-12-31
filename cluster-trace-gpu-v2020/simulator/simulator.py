@@ -58,6 +58,8 @@ class Simulator:
         self.export_cluster_util = export_cluster_util
         self.log_file = log_file  # just pass the path
         self.verbose = verbose
+        # For RL
+        self.obs = None
         random.seed(random_seed)
 
     @staticmethod
@@ -200,22 +202,24 @@ class Simulator:
             np.save(cluster_util_file, cluster_util)
         return num_jobs_done, jct_summary, wait_time_summary
 
-    def simulator_go(self, repeat=1, num_jobs=None):
+    def simulator_go(self, repeat=1, num_jobs=None, rl_model=None, obs=None):
         """
         :return: [[num_jobs, avg_jct, wait_time, makespan], [], ... ]
         """
         result = []
+        self.obs = obs # update observation (state) space
+        print("initialized obs: ", self.obs)
         for repeat_id in range(repeat):
             self.init_go(num_jobs=num_jobs)
 
             while not self.exit_flag:
-                self.tic(self.delta)
+                self.tic(self.delta, rl_model)
 
             num_jobs_done, jct_summary, wait_time_summary = self.exp_summary(repeat_id)
             result.append((num_jobs_done, jct_summary / num_jobs_done, wait_time_summary / num_jobs_done, self.cur_time))
         return result
 
-    def tic(self, delta=1):
+    def tic(self, delta=1, rl_model=None):
         if self.cur_time < self.max_time:
             self.cluster.tic_svc(self.cur_time) #normally won't update since we have pattern = 0
 
@@ -223,10 +227,15 @@ class Simulator:
             self.scheduler.preempt_job(self.cluster)
 
             # Allocate job
-            self.scheduler.alloc_job(self.cluster)
+            self.scheduler.alloc_job(self.cluster, rl_model=rl_model, obs = self.obs)
 
             # Jobs tic and global cur_time += delta
-            tic_return_value = self.cluster.tic_job(delta)
+            # Update obs if rl
+            if rl_model:
+                tic_return_value, obs = self.cluster.tic_job(delta, obs=self.obs)
+                self.obs = obs # update rl state space
+            else:
+                tic_return_value = self.cluster.tic_job(delta)
 
             # After one tic
             if tic_return_value >= 0:

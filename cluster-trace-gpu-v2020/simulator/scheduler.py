@@ -15,13 +15,17 @@ class Scheduler:
         self.last_time_snapshot = [0, 0, 0, 0]  # [idle_gpu, idle_cpu, len(job_list), len(job_to_allocate_cache)]
         self.cannot_counter = 0
 
-    def alloc_job(self, cluster=None, action=-1):
+    def alloc_job(self, cluster=None, action=-1, rl_model=None, obs = None):
         cluster = cluster if cluster is not None else self.cluster
         job_list = cluster.job_list  # Take cluster.job_list
-
+        
         # Trying skipping allocation as early as possible
         if len(job_list) <= 0:
             return 0
+        
+        if rl_model:
+            action, _state = rl_model.predict(obs, deterministic=True)
+
         ig, ic = cluster.idl_gpus, cluster.idl_cpus
         this_time_snapshot = [ig, ic, len(job_list), 0]  # 0: no job allocated.
         if self.last_time_snapshot == this_time_snapshot:  # exactly the same

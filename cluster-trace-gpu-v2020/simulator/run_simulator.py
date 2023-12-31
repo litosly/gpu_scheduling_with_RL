@@ -7,8 +7,11 @@ import time
 import logging
 import argparse
 from pathlib import Path
-
+from stable_baselines3 import A2C
 DATE = "%02d%02d" % (time.localtime().tm_mon, time.localtime().tm_mday)
+
+from rl_env import GPUJobEnv
+MODEL_NAME = "test_rl_model7"
 
 # INPUT TRACE FILE
 CSV_FILE_PATH = Path(__file__).parent / 'traces/pai/'
@@ -84,9 +87,9 @@ print_str = "==========\n%d_Jobs_repeated_%d_times\nalloc,preempt,avg_jct,wait_t
 print(print_str)
 print_fn(print_str, level=2)
 
-for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
+# for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
 # for alloc_policy in [0, 1, 2, 4, 8, 9, 10]:  # HRRN, HRRN_norm (see utils.py)
-# for alloc_policy in [13]:  # HRRN, HRRN_norm (see utils.py)
+for alloc_policy in [0,8,15]:  #RL algorithm
     for preempt_policy in [2]:  # 2LGF
         key = (alloc_policy, preempt_policy)
         print_key = "(%-4s,%4s)" % (ALLOC_POLICY_DICT.get(key[0]), PREEMPT_POLICY_DICT.get(key[1]))
@@ -116,7 +119,14 @@ for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (
             num_jobs_limit=NUM_JOBS,
             gpu_type_matching=GPU_TYPE_MATCHING,
             verbose=VERBOSE)
-        results = simulator.simulator_go(repeat=REPEAT)
+        if alloc_policy == 15: # RL policy
+            env = GPUJobEnv()
+            rl_model = A2C.load(MODEL_NAME, env=env)
+            vec_env = rl_model.get_env()
+            obs = vec_env.reset()
+            results = simulator.simulator_go(repeat=REPEAT, rl_model=rl_model, obs=obs)
+        else:
+            results = simulator.simulator_go(repeat=REPEAT)
 
         # post processing
         num_jobs, avg_jct, makespan, wait_time = 0, 0, 0, 0

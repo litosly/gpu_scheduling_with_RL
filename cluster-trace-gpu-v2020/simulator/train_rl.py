@@ -93,21 +93,21 @@ from stable_baselines3.common.evaluation import evaluate_policy
 
 env = GPUJobEnv()
 
-# model = A2C("MlpPolicy", env, verbose=1)
-# print("start learning")
-# model.learn(total_timesteps=50000)
-# print("learning done")
-# model.save("test_rl_model7")
-# print("model saved")
+model = A2C("MlpPolicy", env, verbose=1)
+print("start learning")
+model.learn(total_timesteps=100000)
+print("learning done")
+model.save("new_reward2")
+print("model saved")
 
 ## Load and evaluate model
-model = A2C.load("test_rl_model7", env=env)
+# model = A2C.load("new_reward1", env=env)
 # mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=5)
 # print("mean_reward, std_reward: ", mean_reward, std_reward)
 vec_env = model.get_env()
 obs = vec_env.reset()
 action_list = []
-for i in range(1000):
+for i in range(2000):
     action, _state = model.predict(obs, deterministic=True)
     action_list.append(action)
     # print("action: ", action)

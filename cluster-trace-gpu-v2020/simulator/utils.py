@@ -16,6 +16,7 @@ ALLOC_POLICY_DICT = {
     12: 'Lottery', # Lottery Sort
     13: 'FairShareGroup', # Fair Share Scheduling
     14: 'FairShareUser', # Fair Share by User instead of Group
+    15: 'RL', # RL algorithm
 }
 
 PREEMPT_POLICY_DICT = {
