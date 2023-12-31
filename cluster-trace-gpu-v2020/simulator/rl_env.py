@@ -50,6 +50,7 @@ CSV_FILE = 'pai_job_duration_estimate_100K.csv'
 
 packing_policy = False
 NUM_JOBS = 20000
+# NUM_JOBS = 5000
 ARRIVAL_RATE = 1000
 NUM_GPUS = 6500
 REPEAT = 1
@@ -111,6 +112,12 @@ print(print_str)
 print_fn(print_str, level=2)
 
 
+def normalize_state(state):
+    # Ensure that the state values are within the defined min and max values
+    state = np.minimum(np.maximum(state, min_values), max_values)
+    # Normalize the state
+    normalized_state = (state - min_values) / (max_values - min_values)
+    return normalized_state
 
 class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     """
@@ -138,10 +145,13 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
 
     | Num | Observation           | Min                 | Max               |
     |-----|-----------------------|---------------------|-------------------|
-    | 0   | average wait time     |  0                  | Inf               |
-    | 1   | length of job list    |  0                  | Inf               |
-    | 2   | min wait time         |  0                  | Inf               |
-    | 3   | max wait time         |  0                  | Inf               |
+    | 0   | num_jobs_in_cluster   |  0                  | Inf               |
+    | 1   | avg_wait_time_cluster |  0                  | Inf               |
+    | 2   | avg_duration_estimate |  0                  | Inf               |
+    | 3   | num_jobs_done         |  0                  | Inf               |
+    | 4   | avg_jct               |  0                  | Inf               |
+    | 5   | avg_wait_time_done    |  0                  | Inf               |
+    | 6   | avg_wasted_time       |  0                  | Inf               |
 
     ### Rewards
     negative of job completion time whenever there is a job completed, 0 for no update
@@ -186,22 +196,12 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             num_jobs_limit=NUM_JOBS,
             gpu_type_matching=GPU_TYPE_MATCHING,
             verbose=VERBOSE)
-        self.simulator.init_go()
-        self.result = []
+        # Initialize the minimum values for each state feature (all zeros in this case)
+        min_values = np.zeros(7)
 
-        min_avg_wait_time = 0
-        min_avg_duration = 0
-        min_job_list_length = 0
-        min_max_wait_time = 0
-        min_min_duration = 0
-        max_avg_wait_time = float('inf')
-        max_avg_duration = float('inf')
-        max_job_list_length = float('inf')
-        max_max_wait_time = float('inf')
-        max_min_duration = float('inf')
-
-        min_values = np.array([min_avg_wait_time, min_avg_duration, min_job_list_length, min_max_wait_time, min_min_duration])
-        max_values = np.array([max_avg_wait_time, max_avg_duration, max_job_list_length, max_max_wait_time, max_min_duration])
+        # Initialize the maximum values for each state feature
+        # Replace 1e6 with a more realistic upper limit based on your specific environment
+        max_values = np.array([1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6])
 
         # Create the action space and observation space
         self.action_space = spaces.Discrete(2)
@@ -215,15 +215,9 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         assert self.state is not None, "Call reset before using step method."
         terminated = 0
         # Read current state
-        avg_wait_time, avg_duration, job_list_length, max_wait_time, min_duration = self.state
-        
-        ## Move forward
-        # update state
-        # terminate state
-        # reward 
+        num_jobs_in_cluster, avg_wait_time_cluster, avg_duration_estimate, num_jobs_done, avg_jct, avg_wait_time_done, avg_wasted_time = self.state
         
         # Actual Run (One tic)
-        # self.tic(self.delta)
         if self.simulator.cur_time < self.simulator.max_time:
             self.simulator.cluster.tic_svc(self.simulator.cur_time) #normally won't update since we have pattern = 0
 
@@ -245,10 +239,10 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
                 self.simulator.exit_flag = 1
                 terminated = 1
         else:
+            terminated = 1
             print_fn("TIMEOUT {} with jobs {}".format(self.cur_time, self.cluster.job_list))
             self.exit_flag = 1
             raise TimeoutError("TIMEOUT {} with jobs {}".format(self.cur_time, self.cluster.job_list))
-        
         
         if self.simulator.exit_flag:
             terminated = 1
@@ -257,27 +251,33 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
             # avg_wait_time = wait_time_summary / num_jobs_done
             # avg_duration = jct_summary / num_jobs_done
         
-        # Update New State
+        ## Update New State
+        # Cluster related
         job_list = self.simulator.cluster.job_list
         if self.simulator.cur_time % 10000 == 0:
             print("current time: ", self.simulator.cur_time)
             print("current job list in cluster: ", len(job_list))
             print("current running job: ", len(self.simulator.cluster.job_runn_list))
             print("length of the full list: ", len(self.simulator.cluster.job_full_list))
+            print("terminated: ", terminated)
 
-        job_list_length = len(job_list)
-
+        num_jobs_in_cluster = len(job_list)
         wait_time_list = [self.simulator.cur_time - job["submit_time"] for job in job_list]
         if wait_time_list:
-            avg_wait_time = statistics.mean(wait_time_list)
-            max_wait_time = max(wait_time_list)
-
+            avg_wait_time_cluster = statistics.mean(wait_time_list)
         duration_list = [job["group_gpu_dur"] for job in job_list]
         if duration_list:
-            avg_duration = statistics.mean(duration_list)
-            min_duration = min(duration_list)
+            avg_duration_estimate = statistics.mean(duration_list)
 
-        self.state = (avg_wait_time, avg_duration, job_list_length, max_wait_time, min_duration)
+        # Done jobs related
+        job_history = self.simulator.cluster.job_history
+        num_jobs_done = job_history.num_jobs_done
+        if num_jobs_done:
+            avg_jct = job_history.jct_summary/num_jobs_done
+            avg_wait_time_done = job_history.wait_time_summary/num_jobs_done
+            avg_wasted_time = job_history.wasted_summary/num_jobs_done
+        
+        self.state = (num_jobs_in_cluster, avg_wait_time_cluster, avg_duration_estimate, num_jobs_done, avg_jct, avg_wait_time_done, avg_wasted_time)
 
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
 
@@ -288,7 +288,9 @@ class GPUJobEnv(gym.Env[np.ndarray, Union[int, np.ndarray]]):
         options: Optional[dict] = None,
     ):
         # super().reset(seed=seed)
-        self.state = np.zeros(5)
+        self.result = []
+        self.simulator.init_go()
+        self.state = np.zeros(7)
         return np.array(self.state, dtype=np.float32), {}
 
     # def close(self):

@@ -3,7 +3,15 @@ from node import Node
 from utils import print_fn, _repr_job_preempt, _repr_job_done, large_job_pruning
 from job_history import JobHistory
 
+import numpy as np
 
+def normalize_wait_time(wait_time, min_wait_time, max_wait_time):
+    # Avoid division by zero in case max and min are the same
+    if max_wait_time == min_wait_time:
+        return 0
+    else:
+        return (wait_time - min_wait_time) / (max_wait_time - min_wait_time)
+    
 class Cluster:
     def __init__(self, node_list=None, num_nodes=None, num_gpus=20,
                  num_cpus=20, pattern=1, period=124, job_list=None,
@@ -82,6 +90,8 @@ class Cluster:
         # Else: return cur_time < 0 ==> exit_flag = 1
 
         reward = 0 # TODO: need reward engineering. Set default reward to 0 if nothing happens, i.e. no job completion
+        # get previous num of done jobs
+        prev_num_jobs_done = self.job_history.num_jobs_done
 
         self.cur_time += delta
         if self.export_cluster_util and self.cur_time % 10000 == 0:
@@ -104,12 +114,38 @@ class Cluster:
                     host_node = self.node_dict.get(host_node_id)
                     suc = host_node.release_job(job=job)
                     assert suc
-
-                    job['jct'] = self.cur_time - over_tic_time - job['submit_time']  # deduct submit_time
-                    reward = -job['jct'] #TODO: need reward engineering
                     self.job_history.add_done_job(job)
 
+                    job['jct'] = self.cur_time - over_tic_time - job['submit_time']  # deduct submit_time
+
+                    ################# Reward Engineering ###################
+                    # reward -= job['jct'] # method 1
+                    # reward reduction in queue length method 2
+                    # reward += 1
+                    # Compute average wait time
+                    if self.job_history.num_jobs_done:
+                        avg_wait_time = self.job_history.wait_time_summary / self.job_history.num_jobs_done
+                    else:
+                        avg_wait_time = 0
+
+                    wait_time = job['jct'] - job['duration']
+                    extra_wait_time = wait_time - avg_wait_time
+                    # Apply a squared difference for penalty
+                    # reward = -np.square(extra_wait_time) if extra_wait_time > 0 else extra_wait_time
+                    # reward = -np.square(extra_wait_time) if extra_wait_time > 0 else 0
+                    penalty = np.sqrt(extra_wait_time) if extra_wait_time > 0 else 0
+                    reward = reward - penalty
+                    # if self.cur_time % 1000 == 0:
+                    #     print("penalty for wait time: ", penalty)
                     print_fn("%sDONE: %s || %s" % (self.log_prefix, _repr_job_done(job), job))
+
+            # Reward higher throughput, i.e. more jobs in a given time
+            diff_num_jobs_done = self.job_history.num_jobs_done - prev_num_jobs_done
+            reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0
+            
+            # if self.cur_time % 1000 == 0:
+                # print("re/ward for completion: ", diff_num_jobs_done if diff_num_jobs_done > 0 else 0)
+
             if return_reward:
                 return self.cur_time, reward
             return self.cur_time  # exit_flag = 0, still going
@@ -134,7 +170,8 @@ class Cluster:
             return self.cur_time  # exit_flag = 0, still going
 
         else:  # no running job, no pending job, no coming job => exit.
-            reward = 1 # TODO: need reward engineering. All jobs done, give reward 1
+            # reward = 1 # TODO: need reward engineering. All jobs done, give reward 1
+            reward = 1
             if return_reward:
                 return -1, reward
             return -1  # exit

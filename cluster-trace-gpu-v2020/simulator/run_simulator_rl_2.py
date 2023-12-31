@@ -95,24 +95,28 @@ env = GPUJobEnv()
 
 # model = A2C("MlpPolicy", env, verbose=1)
 # print("start learning")
-# model.learn(total_timesteps=10_000)
-# model.learn(total_timesteps=110000)
-# model.save("test_rl_model1")
-# del model
+# model.learn(total_timesteps=50000)
+# print("learning done")
+# model.save("test_rl_model7")
+# print("model saved")
 
-## Load model
-model = A2C.load("test_rl_model1", env=env)
-mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
-print("mean_reward, std_reward: ", mean_reward, std_reward)
+## Load and evaluate model
+model = A2C.load("test_rl_model7", env=env)
+# mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=5)
+# print("mean_reward, std_reward: ", mean_reward, std_reward)
 vec_env = model.get_env()
 obs = vec_env.reset()
-for i in range(1):
+action_list = []
+for i in range(1000):
     action, _state = model.predict(obs, deterministic=True)
+    action_list.append(action)
+    # print("action: ", action)
     obs, reward, done, info = vec_env.step(action)
     # if done:
     #   obs = vec_env.reset()
-print("learning done")
+
 print("obs: ", obs)
 print("reward: ", reward)
 print("done: ", done)
 print("info: ", info)
+print("action list sum: ", sum(action_list))
