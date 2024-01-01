@@ -97,7 +97,7 @@ model = A2C("MlpPolicy", env, verbose=1)
 print("start learning")
 model.learn(total_timesteps=100000)
 print("learning done")
-model.save("new_reward2")
+model.save("new_reward5")
 print("model saved")
 
 ## Load and evaluate model

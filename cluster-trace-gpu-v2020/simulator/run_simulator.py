@@ -11,7 +11,8 @@ from stable_baselines3 import A2C
 DATE = "%02d%02d" % (time.localtime().tm_mon, time.localtime().tm_mday)
 
 from rl_env import GPUJobEnv
-MODEL_NAME = "test_rl_model7"
+# MODEL_NAME = "test_rl_model7"
+MODEL_NAME = "new_reward4"
 
 # INPUT TRACE FILE
 CSV_FILE_PATH = Path(__file__).parent / 'traces/pai/'
@@ -81,15 +82,20 @@ avg_jct_dict = {}
 makespan_dict = {}
 wait_time_dict = {}
 runtime_dict = {}
+wait_time_var_dict = {}
+wait_time_minmax_dict = {}
+num_super_long_wait_jobs_dict = {}
+num_long_wait_jobs_dict = {}
 
 print("log_file: %s" % log_file)
-print_str = "==========\n%d_Jobs_repeated_%d_times\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime" % (NUM_JOBS, REPEAT)
+print_str = "==========\n%d_Jobs_repeated_%d_times\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime, wait_time_var,wait_time_minmax,num_long_wait_jobs, num_super_long_wait_jobs" % (NUM_JOBS, REPEAT)
 print(print_str)
 print_fn(print_str, level=2)
 
 # for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
 # for alloc_policy in [0, 1, 2, 4, 8, 9, 10]:  # HRRN, HRRN_norm (see utils.py)
-for alloc_policy in [0,8,15]:  #RL algorithm
+for alloc_policy in [0,1,2,4,8,10,15]:  #RL algorithm
+# for alloc_policy in [0,8]:
     for preempt_policy in [2]:  # 2LGF
         key = (alloc_policy, preempt_policy)
         print_key = "(%-4s,%4s)" % (ALLOC_POLICY_DICT.get(key[0]), PREEMPT_POLICY_DICT.get(key[1]))
@@ -129,12 +135,16 @@ for alloc_policy in [0,8,15]:  #RL algorithm
             results = simulator.simulator_go(repeat=REPEAT)
 
         # post processing
-        num_jobs, avg_jct, makespan, wait_time = 0, 0, 0, 0
+        num_jobs, avg_jct, makespan, wait_time, wait_time_var, wait_time_minmax, num_long_wait_jobs, num_super_long_wait_jobs = 0, 0, 0, 0, 0, 0, 0, 0
         for item in results:  # [num_jobs, avg_jct, makespan, [#alloc, alloc_time, #preempt, preempt_time]]
             num_jobs += item[0]
             avg_jct += item[1]
             wait_time += item[2]
             makespan += item[3]
+            wait_time_var += item[4]
+            wait_time_minmax += item[5]
+            num_long_wait_jobs += item[6]
+            num_super_long_wait_jobs += item[7]
         # key = (alloc_policy, preempt_policy)
         results_dict[key] = results
         num_jobs_dict[key] = num_jobs
@@ -142,25 +152,28 @@ for alloc_policy in [0,8,15]:  #RL algorithm
         makespan_dict[key] = makespan / REPEAT
         wait_time_dict[key] = wait_time / REPEAT
         runtime_dict[key] = time.time() - start_time
-
+        wait_time_var_dict[key] = wait_time_var / REPEAT
+        wait_time_minmax_dict[key] = wait_time_minmax / REPEAT
+        num_long_wait_jobs_dict[key] = num_long_wait_jobs / REPEAT
+        num_super_long_wait_jobs_dict[key] = num_super_long_wait_jobs / REPEAT
         # print_fn("##### %s runtime: %.4f sec #####\n" % (print_key, runtime_dict[key]))
 
-        print_str = "%s,%.2f,%.2f,%.0f,%d,%.2f" % (print_key, avg_jct_dict[key], wait_time_dict[key], makespan_dict[key], num_jobs_dict[key], runtime_dict[key])
+        print_str = "%s,%.2f,%.2f,%.0f,%d,%.2f, %.2f, %.2f, %.2f, %.2f" % (print_key, avg_jct_dict[key], wait_time_dict[key], makespan_dict[key], num_jobs_dict[key], runtime_dict[key], wait_time_var_dict[key], wait_time_minmax_dict[key], num_long_wait_jobs_dict[key], num_super_long_wait_jobs_dict[key])
         print(print_str)
         print_fn(print_str, level=2)
 
 if SORT_BY_JCT:
     print("\n# Sort by JCT")
-    print_fn("\n# Sort by JCT\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime", level=2)
+    print_fn("\n# Sort by JCT\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime,wait_time_var,wait_time_minmax, num_long_wait_jobs, num_super_long_wait_jobs", level=2)
     items = sorted(avg_jct_dict.items(), key=lambda d: d[1])
 else:
     print("\n# Summary")
-    print_fn("\n# Summary\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime", level=2)
+    print_fn("\n# Summary\nalloc,preempt,avg_jct,wait_time,makespan,jobs_done,runtime,wait_time_var,wait_time_minmax, num_long_wait_jobs, num_super_long_wait_jobs", level=2)
     items = avg_jct_dict.items()
 for item in items:
     key = item[0]
     print_key = "(%-4s,%4s)" % (ALLOC_POLICY_DICT.get(key[0]), PREEMPT_POLICY_DICT.get(key[1]))
-    print_str = "%s,%.2f,%.2f,%.0f,%d,%.2f" % (print_key, avg_jct_dict[key], wait_time_dict[key], makespan_dict[key], num_jobs_dict[key], runtime_dict[key])
+    print_str = "%s,%.2f,%.2f,%.0f,%d,%.2f, %.2f, %.2f, %.2f, %.2f" % (print_key, avg_jct_dict[key], wait_time_dict[key], makespan_dict[key], num_jobs_dict[key], runtime_dict[key], wait_time_var_dict[key], wait_time_minmax_dict[key], num_long_wait_jobs_dict[key], num_super_long_wait_jobs_dict[key])
     print(print_str)
     print_fn(print_str, level=2)
 

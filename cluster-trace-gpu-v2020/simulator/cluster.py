@@ -116,7 +116,7 @@ class Cluster:
                     assert suc
 
                     job['jct'] = self.cur_time - over_tic_time - job['submit_time']  # deduct submit_time
-                    
+
                     self.job_history.add_done_job(job)
                     # print("self.cur_time: ", self.cur_time)
                     # print("over_tic_time: ", over_tic_time)
@@ -145,7 +145,7 @@ class Cluster:
             # Reward higher throughput, i.e. more jobs in a given time
             if return_reward:
                 diff_num_jobs_done = self.job_history.num_jobs_done - prev_num_jobs_done
-                reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0
+                reward += 5*diff_num_jobs_done if diff_num_jobs_done > 0 else 0
                 # if self.cur_time % 1000 == 0:
                     # print("re/ward for completion: ", diff_num_jobs_done if diff_num_jobs_done > 0 else 0)
                 return self.cur_time, reward

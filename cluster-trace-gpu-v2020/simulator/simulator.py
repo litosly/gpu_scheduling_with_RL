@@ -153,13 +153,18 @@ class Simulator:
 
         print_fn("Spared nodes: %s" % self.cluster.spare_node_id)
 
-    def exp_summary(self, id=None):
+    def exp_summary(self, id=None, fairness_metrics = False):
         job_history = self.cluster.job_history
         num_jobs_done = job_history.num_jobs_done
         jct_summary = job_history.jct_summary
         wait_time_summary = job_history.wait_time_summary
         job_done_list = job_history.job_done_list
         wasted_summary = job_history.wasted_summary
+        wait_time_variance = job_history.wait_time_variance 
+        wait_time_min_max = job_history.wait_time_min_max
+        # number of jobs exceeding a certain wait time threshold
+        num_long_wait_jobs = job_history.num_long_wait_jobs
+        num_super_long_wait_jobs = job_history.num_super_long_wait_jobs
         assert num_jobs_done == len(job_done_list)
 
         print_fn("Wasted progress in summary: %s" % wasted_summary)
@@ -200,6 +205,8 @@ class Simulator:
                 self.log_file.name, self.alloc_policy, self.preempt_policy, id)
             cluster_util_file = self.log_file.parent / cluster_util_name
             np.save(cluster_util_file, cluster_util)
+        if fairness_metrics:
+            return wait_time_variance, wait_time_min_max, num_long_wait_jobs, num_super_long_wait_jobs
         return num_jobs_done, jct_summary, wait_time_summary
 
     def simulator_go(self, repeat=1, num_jobs=None, rl_model=None, obs=None):
@@ -214,9 +221,11 @@ class Simulator:
 
             while not self.exit_flag:
                 self.tic(self.delta, rl_model)
-
+            ## wait time variance
             num_jobs_done, jct_summary, wait_time_summary = self.exp_summary(repeat_id)
-            result.append((num_jobs_done, jct_summary / num_jobs_done, wait_time_summary / num_jobs_done, self.cur_time))
+            wait_time_var, wait_time_min_max, num_long_wait_jobs, num_super_long_wait_jobs = self.exp_summary(repeat_id, fairness_metrics=True)
+            print("wait_time_var, wait_time_min_max, num_long_wait_jobs, num_super_long_wait_jobs: ", wait_time_var, wait_time_min_max, num_long_wait_jobs, num_super_long_wait_jobs)
+            result.append((num_jobs_done, jct_summary / num_jobs_done, wait_time_summary / num_jobs_done, self.cur_time, wait_time_var, wait_time_min_max, num_long_wait_jobs, num_super_long_wait_jobs))
         return result
 
     def tic(self, delta=1, rl_model=None):
