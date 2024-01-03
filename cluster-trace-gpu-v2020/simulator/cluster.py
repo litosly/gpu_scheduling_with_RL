@@ -135,19 +135,23 @@ class Cluster:
 
                         wait_time = job['jct'] - job['duration']
                         extra_wait_time = wait_time - avg_wait_time
-                        # Apply a squared difference for penalty
                         penalty = np.sqrt(extra_wait_time) if extra_wait_time > 0 else 0
                         reward = reward - penalty
-                        # if self.cur_time % 1000 == 0:
-                        #     print("penalty for wait time: ", penalty)
-                    print_fn("%sDONE: %s || %s" % (self.log_prefix, _repr_job_done(job), job))
 
+                    print_fn("%sDONE: %s || %s" % (self.log_prefix, _repr_job_done(job), job))
+            
             # Reward higher throughput, i.e. more jobs in a given time
             if return_reward:
                 diff_num_jobs_done = self.job_history.num_jobs_done - prev_num_jobs_done
-                reward += 5*diff_num_jobs_done if diff_num_jobs_done > 0 else 0
-                # if self.cur_time % 1000 == 0:
-                    # print("re/ward for completion: ", diff_num_jobs_done if diff_num_jobs_done > 0 else 0)
+                wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
+                if diff_num_jobs_done: # normalize done jobs waiting penalty
+                    reward = reward / diff_num_jobs_done
+
+                mean_wait_time = np.mean(wait_time_list)
+                avg_waiting_time_penalty_for_cluster_job = np.sqrt(mean_wait_time) if mean_wait_time > 0 else 0
+                reward -= avg_waiting_time_penalty_for_cluster_job # average waiting time penalty for cluster jobs
+                
+                reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0 # throughput reward
                 return self.cur_time, reward
             
             # Update obs, i.e. rl state space if obs not None:
@@ -155,7 +159,7 @@ class Cluster:
                 job_list = self.job_list
 
                 num_jobs_in_cluster = len(job_list)
-                wait_time_list = [self.cur_time - job["submit_time"] for job in job_list]
+                wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
                 if wait_time_list:
                     avg_wait_time_cluster = np.mean(wait_time_list)
                 else:

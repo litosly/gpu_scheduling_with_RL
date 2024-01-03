@@ -60,6 +60,7 @@ class Simulator:
         self.verbose = verbose
         # For RL
         self.obs = None
+        self.random_seed = random_seed
         random.seed(random_seed)
 
     @staticmethod
@@ -131,7 +132,8 @@ class Simulator:
         # set a list of jobs to be arrived at the same time
         # e.g. 1000 jobs have same arrival time of 0 for 60 secs 
         self.set_job_list_arrival_time(self.job_list, self.arrival_rate, self.arrival_interval, self.arrival_shuffle)
-        print_fn("----------------------------- RANDOM: %d" % random.randint(1000, 9999))
+        # print_fn("----------------------------- RANDOM: %d" % random.randint(1000, 9999))
+        print_fn("----------------------------- RANDOM: %d" % self.random_seed)
         print_fn("%d Job loaded" % len(self.job_list))
 
         # Init Cluster resources
@@ -141,7 +143,10 @@ class Simulator:
             node_list = [Node(id=1, num_gpus=self.num_gpus, num_cpus=self.num_cpus)]
         else:
             node_list = self.init_node_list()
-        self.cluster = Cluster(node_list=node_list, job_list=self.job_list, random_seed=random.randint(1000, 9999),
+        # self.cluster = Cluster(node_list=node_list, job_list=self.job_list, random_seed=random.randint(1000, 9999),
+                            #    num_spare_node=self.num_spare_node, pattern=self.pattern,
+                            #    export_cluster_util=self.export_cluster_util)
+        self.cluster = Cluster(node_list=node_list, job_list=self.job_list, random_seed=self.random_seed,
                                num_spare_node=self.num_spare_node, pattern=self.pattern,
                                export_cluster_util=self.export_cluster_util)
 

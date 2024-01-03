@@ -11,8 +11,6 @@ from stable_baselines3 import A2C
 DATE = "%02d%02d" % (time.localtime().tm_mon, time.localtime().tm_mday)
 
 from rl_env import GPUJobEnv
-# MODEL_NAME = "test_rl_model7"
-MODEL_NAME = "new_reward4"
 
 # INPUT TRACE FILE
 CSV_FILE_PATH = Path(__file__).parent / 'traces/pai/'
@@ -94,7 +92,8 @@ print_fn(print_str, level=2)
 
 # for alloc_policy in [0, 1, 2, 4, 8, 10, 13]:  # 0SDF, 1SJU, 2SJG, 4SJGG, 8FIFO (see utils.py)
 # for alloc_policy in [0, 1, 2, 4, 8, 9, 10]:  # HRRN, HRRN_norm (see utils.py)
-for alloc_policy in [0,1,2,4,8,10,15]:  #RL algorithm
+for alloc_policy in [19]:  #RL algorithm 15 16 17 18 19 different model
+# for alloc_policy in [0,8]:  #RL algorithm 15 16 17 different model    
 # for alloc_policy in [0,8]:
     for preempt_policy in [2]:  # 2LGF
         key = (alloc_policy, preempt_policy)
@@ -125,7 +124,17 @@ for alloc_policy in [0,1,2,4,8,10,15]:  #RL algorithm
             num_jobs_limit=NUM_JOBS,
             gpu_type_matching=GPU_TYPE_MATCHING,
             verbose=VERBOSE)
-        if alloc_policy == 15: # RL policy
+        if alloc_policy in [15,16,17,18,19]: # RL policy
+            if alloc_policy == 15: # new_reward4
+                MODEL_NAME = "reward_1"
+            elif alloc_policy == 16:
+                MODEL_NAME  = "reward_2"
+            elif alloc_policy == 17:
+                MODEL_NAME  = "reward_3"
+            elif alloc_policy == 18:
+                MODEL_NAME  = "reward_4"
+            elif alloc_policy == 19:
+                MODEL_NAME  = "reward_5"
             env = GPUJobEnv()
             rl_model = A2C.load(MODEL_NAME, env=env)
             vec_env = rl_model.get_env()
