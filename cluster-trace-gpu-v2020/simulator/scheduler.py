@@ -15,13 +15,17 @@ class Scheduler:
         self.last_time_snapshot = [0, 0, 0, 0]  # [idle_gpu, idle_cpu, len(job_list), len(job_to_allocate_cache)]
         self.cannot_counter = 0
 
-    def alloc_job(self, cluster=None):
+    def alloc_job(self, cluster=None, action=-1, rl_model=None, obs = None):
         cluster = cluster if cluster is not None else self.cluster
         job_list = cluster.job_list  # Take cluster.job_list
-
+        
         # Trying skipping allocation as early as possible
         if len(job_list) <= 0:
             return 0
+        
+        if rl_model:
+            action, _state = rl_model.predict(obs, deterministic=True)
+
         ig, ic = cluster.idl_gpus, cluster.idl_cpus
         this_time_snapshot = [ig, ic, len(job_list), 0]  # 0: no job allocated.
         if self.last_time_snapshot == this_time_snapshot:  # exactly the same
@@ -40,7 +44,11 @@ class Scheduler:
         # Greedy algorithm or Greedy + load balancing
         if self.alloc_policy in ALLOC_POLICY_DICT.keys():
             # Heavy action
-            self.alloc_job_sort(job_list, cluster.job_runn_list)
+            # if action is non-negative, it is part of the action space for RL algorithm
+            if action >= 0:
+                self.alloc_job_sort(job_list, cluster.job_runn_list, action)
+            else:
+                self.alloc_job_sort(job_list, cluster.job_runn_list)
             for job_a in job_list:
                 succ_alloc = self.try_allocate_job_to_cluster(job_a, cluster)
                 if succ_alloc == 1:
@@ -56,11 +64,15 @@ class Scheduler:
         for job_a in job_to_allocate_cache:
             cluster.job_list.remove(job_a)
 
-    def alloc_job_sort(self, job_list, job_runn_list=None):
+    def alloc_job_sort(self, job_list, job_runn_list=None, action = -1):
         if self.alloc_policy == 0:  # short_duration_first
             job_list.sort(key=lambda e: (e['duration'], e['job_id']))
-        elif self.alloc_policy == 8:  # FIFO, remains the original order
+            
+        elif action == 0:
+            job_list.sort(key=lambda e: (e['group_gpu_dur'], e['job_id']))
+        elif self.alloc_policy == 8 or action == 1:  # FIFO, remains the original order
             job_list.sort(key=lambda e: (e['submit_time'], e['job_id']))
+
         elif self.alloc_policy == 9: # HRRN, (waiting_time + service_time ) / service time first
             job_list.sort(key=lambda e: ( (e['group_gpu_dur']+e['wait_time']) / e['wait_time'], e['job_id']))
             # With Normalization for group_gpu_dur
@@ -183,6 +195,15 @@ class Scheduler:
         return node_list
 
     def preempt_job(self, cluster=None):
+        """preempt policy we choose : LGF 
+            PREEMPT_POLICY_DICT = {
+                0: 'SDF',  # 'smallest_duration_first'
+                1: 'SSF',  # 'smallest_size_first
+                2: 'LGF',  # 'large_gpu_first', # LGF, size:num_gpu
+            }
+        initialize some properties 
+        on_time for time it's already running
+        """
         cluster = cluster if cluster is not None else self.cluster
         if all([n.idl_gpus for n in cluster.node_list]) >= 0 and \
             all([n.idl_cpus for n in cluster.node_list]) >= 0:
@@ -210,6 +231,7 @@ class Scheduler:
             job['node'] = None
 
     def preempt_job_node(self, node, preempted_job_list):
+        """add jobs to the preempted_job_list"""
         # Svc is updated, but the job is not
         node.update_idl_gpus()
         node.update_idl_cpus()
@@ -217,7 +239,7 @@ class Scheduler:
         if self.preempt_policy in PREEMPT_POLICY_DICT.keys():
             # Sort node.job_runn_list in place
             self.preempt_job_sort_node(node=node, preempt_policy=self.preempt_policy)
-
+            # self.node.job_runn_list sorted
             for job_i in preempted_job_list:
                 for job_j in node.job_runn_list:
                     if job_i['job_id'] == job_j['job_id']:  # these instances belong to the same job

@@ -16,6 +16,11 @@ ALLOC_POLICY_DICT = {
     12: 'Lottery', # Lottery Sort
     13: 'FairShareGroup', # Fair Share Scheduling
     14: 'FairShareUser', # Fair Share by User instead of Group
+    15: 'RL1', # RL algorithm 1, with reward = - np.sqrt(penalty_done_jobs) + 3 * throughput
+    16: 'RL2', # RL algorithm 2, with reward = - np.sqrt(penalty_done_jobs)
+    17: 'RL3', # RL algorithm 3, with reward = - average(np.sqrt(penalty_done_jobs)) + throughput
+    18: 'RL4', # RL algorithm 4, with reward = - average(np.sqrt(penalty_wait_time_cluster_job)) + throughput
+    19: 'RL5', # RL algorithm 5, with reward = - average(np.sqrt(penalty_wait_time_cluster_job)) + throughput
 }
 
 PREEMPT_POLICY_DICT = {

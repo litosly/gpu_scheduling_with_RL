@@ -106,7 +106,45 @@ class JobHistory:
         for job in self.job_done_list:
             wait_time_summary += job['jct'] - job['duration']
         return wait_time_summary
+    
+    @property
+    def wait_time_variance(self):
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list]
+        return np.var(wait_time_list)
+    
+    @property
+    def wait_time_min_max(self):
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list]
+        return max(wait_time_list) - min(wait_time_list)
+    @property
+    def wait_time_variance_except_0(self):
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list if (job['jct'] - job['duration']) != 0]
+        return np.var(wait_time_list)
+    
+    @property
+    def wait_time_min_max_except_0(self):
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list if (job['jct'] - job['duration']) != 0]
+        return max(wait_time_list) - min(wait_time_list)
+    
+    @property
+    def num_long_wait_jobs(self, threshold = None):
+        """Return the number of jobs done that wait for longer than a certain threshold,
+        if threshold is not set, then use average
+        """
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list]
+        if not threshold:
+            threshold = np.mean(wait_time_list)
+        return len([wait_time for wait_time in wait_time_list if wait_time > threshold])
 
+    @property
+    def num_super_long_wait_jobs(self):
+        """Return the number of jobs done that wait for longer than 80% of the max wait time,
+        if threshold is not set, then use average
+        """
+        wait_time_list = [job['jct'] - job['duration'] for job in self.job_done_list]
+        threshold = max(wait_time_list)*0.8
+        return len([wait_time for wait_time in wait_time_list if wait_time > threshold])
+    
     @property
     def wasted_summary(self):
         wasted_summary = 0

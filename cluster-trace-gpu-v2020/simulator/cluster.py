@@ -3,7 +3,15 @@ from node import Node
 from utils import print_fn, _repr_job_preempt, _repr_job_done, large_job_pruning
 from job_history import JobHistory
 
+import numpy as np
 
+def normalize_wait_time(wait_time, min_wait_time, max_wait_time):
+    # Avoid division by zero in case max and min are the same
+    if max_wait_time == min_wait_time:
+        return 0
+    else:
+        return (wait_time - min_wait_time) / (max_wait_time - min_wait_time)
+    
 class Cluster:
     def __init__(self, node_list=None, num_nodes=None, num_gpus=20,
                  num_cpus=20, pattern=1, period=124, job_list=None,
@@ -75,11 +83,16 @@ class Cluster:
         node_list.sort(key=lambda n: n.id)
         return node_list
 
-    def tic_job(self, delta=1):
+    def tic_job(self, delta=1, return_reward=False, obs = None):
         # Unlike tic_svc(), it receives simulator's cur_time as its own cur_time
         # Here it returns a "cur_time" value to the simulator
         # If succeed: return cur_time >= 0
         # Else: return cur_time < 0 ==> exit_flag = 1
+
+        reward = 0 
+        # get previous num of done jobs
+        prev_num_jobs_done = self.job_history.num_jobs_done
+
         self.cur_time += delta
         if self.export_cluster_util and self.cur_time % 10000 == 0:
             self.record_cluster_util()
@@ -87,8 +100,8 @@ class Cluster:
         job_runn_list = self.job_runn_list
         if len(job_runn_list) > 0:
             for job in job_runn_list:
-                job['on_time'] += delta
-                job['progress'] = job['on_time'] * job['num_gpu']
+                job['on_time'] += delta # unit time pass, 1 sec by default
+                job['progress'] = job['on_time'] * job['num_gpu'] # num_gpu sec progress by default for every unit time pass
                 
                 # Job done logic
                 if job['on_time'] >= job['duration']:
@@ -106,8 +119,65 @@ class Cluster:
 
                     self.job_history.add_done_job(job)
 
+                    ################# Reward Engineering ###################
+                    # Compute average wait time
+                    if return_reward:
+                        if self.job_history.num_jobs_done:
+                            avg_wait_time = self.job_history.wait_time_summary / self.job_history.num_jobs_done
+                        else:
+                            avg_wait_time = 0
+
+                        wait_time = job['jct'] - job['duration']
+                        extra_wait_time = wait_time - avg_wait_time
+                        penalty = np.sqrt(extra_wait_time) if extra_wait_time > 0 else 0
+                        reward = reward - penalty
+
                     print_fn("%sDONE: %s || %s" % (self.log_prefix, _repr_job_done(job), job))
+            
+            # Reward higher throughput, i.e. more jobs in a given time
+            if return_reward:
+                diff_num_jobs_done = self.job_history.num_jobs_done - prev_num_jobs_done
+                # wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
+                # if diff_num_jobs_done: # normalize done jobs waiting penalty
+                #     reward = reward / diff_num_jobs_done
+
+                # mean_wait_time = np.mean(wait_time_list)
+                # avg_waiting_time_penalty_for_cluster_job = np.sqrt(mean_wait_time) if mean_wait_time > 0 else 0
+                # reward -= avg_waiting_time_penalty_for_cluster_job # average waiting time penalty for cluster jobs
                 
+                # reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0 # throughput reward
+                reward += 3*diff_num_jobs_done
+                return self.cur_time, reward
+            
+            # Update obs, i.e. rl state space if obs not None:
+            if type(obs) != type(None):
+                job_list = self.job_list
+
+                num_jobs_in_cluster = len(job_list)
+                wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
+                if wait_time_list:
+                    avg_wait_time_cluster = np.mean(wait_time_list)
+                else:
+                    avg_wait_time_cluster = 0
+
+                duration_list = [job["group_gpu_dur"] for job in job_list]
+                if duration_list:
+                    avg_duration_estimate = np.mean(duration_list)
+                else:
+                    avg_duration_estimate = 0
+                # Done jobs related
+                job_history = self.job_history
+                num_jobs_done = job_history.num_jobs_done
+                if num_jobs_done:
+                    avg_jct = job_history.jct_summary/num_jobs_done
+                    avg_wait_time_done = job_history.wait_time_summary/num_jobs_done
+                    avg_wasted_time = job_history.wasted_summary/num_jobs_done
+                else:
+                    avg_jct = 0
+                    avg_wait_time_done = 0
+                    avg_wasted_time = 0
+                obs = (num_jobs_in_cluster, avg_wait_time_cluster, avg_duration_estimate, num_jobs_done, avg_jct, avg_wait_time_done, avg_wasted_time)
+                return self.cur_time, obs
             return self.cur_time  # exit_flag = 0, still going
 
         # len(job_runn_list) <= 0,
@@ -117,15 +187,29 @@ class Cluster:
 
             if self.idle_cluster_counter % 10000 == 0:
                 print_fn('{} idle cluster: {}'.format(self.idle_cluster_counter, [_repr_job_preempt(e) for e in self.job_list]), level=2)
+            if return_reward:
+                return self.cur_time, reward
+            if type(obs) != type(None):
+                return self.cur_time, obs
             return self.cur_time  # exit_flag = 0, still going
 
         elif len(self.job_full_list) > 0:  # i.e., empty cluster waiting for jobs to come
             wake_time = self.job_full_list[-1]['submit_time'] - delta  # the submit_time of the earliest job
             assert self.cur_time <= wake_time  # if ==, i.e., the stride is unnecessary
             self.cur_time = wake_time
+            if return_reward:
+                return self.cur_time, reward
+            if type(obs) != type(None):
+                return self.cur_time, obs
             return self.cur_time  # exit_flag = 0, still going
 
         else:  # no running job, no pending job, no coming job => exit.
+            # reward = 1 # TODO: need reward engineering. All jobs done, give reward 1
+            reward = 1
+            if return_reward:
+                return -1, reward
+            if type(obs) != type(None):
+                return -1, obs
             return -1  # exit
 
     def tic_svc(self, cur_time):
