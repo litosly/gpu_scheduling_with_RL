@@ -118,14 +118,8 @@ class Cluster:
                     job['jct'] = self.cur_time - over_tic_time - job['submit_time']  # deduct submit_time
 
                     self.job_history.add_done_job(job)
-                    # print("self.cur_time: ", self.cur_time)
-                    # print("over_tic_time: ", over_tic_time)
-                    # print("job['submit_time']: ", job['submit_time'])
-                    # print("self.job_history.jct_summary: ", self.job_history.jct_summary)
+
                     ################# Reward Engineering ###################
-                    # reward -= job['jct'] # method 1
-                    # reward reduction in queue length method 2
-                    # reward += 1
                     # Compute average wait time
                     if return_reward:
                         if self.job_history.num_jobs_done:
@@ -143,15 +137,16 @@ class Cluster:
             # Reward higher throughput, i.e. more jobs in a given time
             if return_reward:
                 diff_num_jobs_done = self.job_history.num_jobs_done - prev_num_jobs_done
-                wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
-                if diff_num_jobs_done: # normalize done jobs waiting penalty
-                    reward = reward / diff_num_jobs_done
+                # wait_time_list = [self.cur_time - job["submit_time"] for job in self.job_list]
+                # if diff_num_jobs_done: # normalize done jobs waiting penalty
+                #     reward = reward / diff_num_jobs_done
 
-                mean_wait_time = np.mean(wait_time_list)
-                avg_waiting_time_penalty_for_cluster_job = np.sqrt(mean_wait_time) if mean_wait_time > 0 else 0
-                reward -= avg_waiting_time_penalty_for_cluster_job # average waiting time penalty for cluster jobs
+                # mean_wait_time = np.mean(wait_time_list)
+                # avg_waiting_time_penalty_for_cluster_job = np.sqrt(mean_wait_time) if mean_wait_time > 0 else 0
+                # reward -= avg_waiting_time_penalty_for_cluster_job # average waiting time penalty for cluster jobs
                 
-                reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0 # throughput reward
+                # reward += diff_num_jobs_done if diff_num_jobs_done > 0 else 0 # throughput reward
+                reward += 3*diff_num_jobs_done
                 return self.cur_time, reward
             
             # Update obs, i.e. rl state space if obs not None:

@@ -92,21 +92,20 @@ from stable_baselines3 import A2C
 from stable_baselines3.common.evaluation import evaluate_policy
 
 env = GPUJobEnv()
+TRAIN_MODE = True
+EVALUATE_MODE = False
 
-# model = A2C("MlpPolicy", env, verbose=1)
-# print("start learning")
-# model.learn(total_timesteps=100000)
-# print("learning done")
-# model.save("reward_2") # no throughput reward
-# model.save("reward_3") # avg done penalty  + throughput
-# model.save("reward_4") # avg waiting penalty for cluster job list + throughput
-# model.save("reward_5") # avg done penalty + avg waiting penalty for cluster job list + throughput
-# print("model saved")
+if TRAIN_MODE:
+    model = A2C("MlpPolicy", env, verbose=1)
+    print("start learning")
+    model.learn(total_timesteps=100000)
+    print("learning done")
+    model.save("reward_1")
+    print("model saved")
 
-## Load and evaluate model
-model = A2C.load("reward_5", env=env)
+elif EVALUATE_MODE:
+    model = A2C.load("reward_1", env=env)
 
-## not important evaluation
 # mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=5)
 # print("mean_reward, std_reward: ", mean_reward, std_reward)
 
@@ -116,13 +115,10 @@ action_list = []
 for i in range(10000):
     action, _state = model.predict(obs, deterministic=True)
     action_list.append(action)
-    # print("action: ", action)
     obs, reward, done, info = vec_env.step(action)
-    # if done:
-    #   obs = vec_env.reset()
 
-print("obs: ", obs)
-print("reward: ", reward)
-print("done: ", done)
-print("info: ", info)
+# print("obs: ", obs)
+# print("reward: ", reward)
+# print("done: ", done)
+# print("info: ", info)
 print("action list sum: ", sum(action_list))
