@@ -73,7 +73,7 @@ class Scheduler:
             job_list.sort(key=lambda e: (((e['group_gpu_dur'] - group_min) / de if de > 0 else 0) + e['wait_time']) / e['wait_time'])
         elif self.alloc_policy == 11: # PS, assigned priority: give weight to different resources (gpu, cpu) per job first
             #for the jobs sort, the more cpu and gpu they use, the higher priority they get. 
-            job_list.sort(key=lambda e: ((e['group_gpu_dur'] + e['num_gpu']) / 2, e['job_id']))
+            job_list.sort(key=lambda e: ((e['num_cpu'] + e['num_gpu']) / 2, e['job_id']))
         elif self.alloc_policy in [1, 2, 4]:  # SJF with duration estimatio
             est_feature = {1: 'user_dur', 2: 'group_dur', 4: 'group_gpu_dur'}[self.alloc_policy]
             job_list.sort(key=lambda e: (e[est_feature], e['job_id']))
